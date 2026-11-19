@@ -1,0 +1,6 @@
+{
+  "name": "PreferenceAI",
+  "description": "Two answers. Your choice. Smarter conversations. A preference-learning AI chatbot powered by Scikit-learn KNN and multi-armed bandit style selection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
