@@ -17,6 +17,7 @@ const VIEW_TITLES: Record<NavView, string> = {
   chat: 'Dual Comparison Feed',
   analytics: 'KNN Preference Analytics',
   architecture: 'Decision ML Architecture',
+  scene3d: '3D KNN Vector Space',
   settings: 'Settings & API Config',
 };
 

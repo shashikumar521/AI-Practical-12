@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { ChatInterface } from './components/ChatInterface';
 import { DecisionArchitecture } from './components/DecisionArchitecture';
+import { KnnScene3D } from './components/KnnScene3D';
 import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -331,6 +332,10 @@ export default function App() {
               stats={stats}
               onUpdateConfig={handleUpdateConfig}
             />
+          )}
+
+          {activeView === 'scene3d' && (
+            <KnnScene3D stats={stats} theme={theme} />
           )}
 
           {activeView === 'settings' && (

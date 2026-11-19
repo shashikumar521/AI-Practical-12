@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   BarChart3,
+  Box,
   Cpu,
   GitBranch,
   History,
@@ -35,6 +36,7 @@ const NAV_ITEMS: { id: NavView; label: string; icon: React.ComponentType<{ class
   { id: 'chat', label: 'Chat Interface', icon: MessageSquare },
   { id: 'analytics', label: 'KNN Preference Analytics', icon: BarChart3 },
   { id: 'architecture', label: 'Decision ML Architecture', icon: GitBranch },
+  { id: 'scene3d', label: '3D KNN Vector Space', icon: Box },
   { id: 'settings', label: 'Settings & API Config', icon: SlidersHorizontal },
 ];
 

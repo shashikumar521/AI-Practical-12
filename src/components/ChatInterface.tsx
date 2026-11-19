@@ -98,13 +98,72 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [focusedSlotByTurn, setFocusedSlotByTurn] = useState<Record<string, 'A' | 'B'>>({});
   const feedEndRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (turns.length > 0) {
       feedEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [turns.length]);
+
+  const focusChoiceCard = (turnId: string, slot: 'A' | 'B') => {
+    setFocusedSlotByTurn((prev) => ({ ...prev, [turnId]: slot }));
+    const el = cardRefs.current[`${turnId}-${slot}`];
+    if (el) {
+      el.focus({ preventScroll: false });
+    }
+  };
+
+  // Global keyboard listener for Left/Right arrow selection and Enter confirmation
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Enter') return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === 'textarea' ||
+        tag === 'input' ||
+        tag === 'select' ||
+        tag === 'button' ||
+        tag === 'a' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      // If focus is already inside a comparison card, let its local handler manage it
+      if (target?.closest('[data-comparison-group]')) {
+        return;
+      }
+
+      // Find the latest ready, unchosen comparison turn
+      const activeTurn = [...turns]
+        .reverse()
+        .find((t) => t.status === 'ready' && !t.selectedChoice && !t.choosing);
+      if (!activeTurn) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        focusChoiceCard(activeTurn.id, 'A');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        focusChoiceCard(activeTurn.id, 'B');
+      } else if (e.key === 'Enter') {
+        const chosenSlot = focusedSlotByTurn[activeTurn.id];
+        if (chosenSlot) {
+          e.preventDefault();
+          void onSelectAnswer(activeTurn.id, chosenSlot);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown);
+  }, [turns, focusedSlotByTurn, onSelectAnswer]);
 
   const handleCopy = async (key: string, text: string) => {
     try {
@@ -410,18 +469,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         </p>
                       </div>
 
-                      {turn.learnedFeedback && (
+                      {turn.learnedFeedback ? (
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/40 text-xs font-medium text-emerald-700 dark:text-emerald-300 shrink-0">
                           <Check className="w-3.5 h-3.5" />
                           <span>
                             Learned: {turn.learnedFeedback.selectedStyle} ({turn.learnedFeedback.learnedSamples} samples)
                           </span>
                         </div>
+                      ) : (
+                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                          ← / → to navigate A or B · Enter to select
+                        </div>
                       )}
                     </div>
 
                     {/* Side-by-side Answer A and Answer B */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                    <div
+                      role="radiogroup"
+                      aria-label={`Answer comparison for turn ${turnNum}`}
+                      data-comparison-group={turn.id}
+                      className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch"
+                    >
                       {(['A', 'B'] as const).map((slot) => {
                         const styleLabel = slot === 'A' ? turn.styleA : turn.styleB;
                         const answerText = slot === 'A' ? turn.answerA : turn.answerB;
@@ -430,15 +498,57 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         const isRejected = Boolean(turn.selectedChoice && turn.selectedChoice !== slot);
                         const copyId = `${turn.id}-${slot}`;
                         const wordCount = formatWordCount(answerText);
+                        const activeRovingSlot = focusedSlotByTurn[turn.id] ?? 'A';
+                        const isInteractive = !turn.selectedChoice && !turn.choosing;
+                        const cardTabIndex = isInteractive ? (activeRovingSlot === slot ? 0 : -1) : -1;
+
+                        const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+                          if (!isInteractive) return;
+                          const targetEl = e.target as HTMLElement;
+                          const isNestedButton =
+                            e.target !== e.currentTarget && targetEl.tagName === 'BUTTON';
+
+                          if (e.key === 'ArrowRight') {
+                            e.preventDefault();
+                            focusChoiceCard(turn.id, 'B');
+                          } else if (e.key === 'ArrowLeft') {
+                            e.preventDefault();
+                            focusChoiceCard(turn.id, 'A');
+                          } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            focusChoiceCard(turn.id, slot === 'A' ? 'B' : 'A');
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            focusChoiceCard(turn.id, slot === 'B' ? 'A' : 'B');
+                          } else if ((e.key === 'Enter' || e.key === ' ') && !isNestedButton) {
+                            e.preventDefault();
+                            void onSelectAnswer(turn.id, slot);
+                          }
+                        };
+
+                        const isKeyboardFocused =
+                          isInteractive && focusedSlotByTurn[turn.id] === slot;
 
                         return (
                           <div
                             key={slot}
-                            className={`flex flex-col justify-between rounded-xl border p-4 sm:p-5 transition-all duration-200 ${
+                            ref={(el) => {
+                              cardRefs.current[`${turn.id}-${slot}`] = el;
+                            }}
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-disabled={!isInteractive}
+                            aria-label={`Answer ${slot}: ${styleLabel || ''}`}
+                            tabIndex={cardTabIndex}
+                            onFocus={() => setFocusedSlotByTurn((prev) => ({ ...prev, [turn.id]: slot }))}
+                            onKeyDown={handleCardKeyDown}
+                            className={`flex flex-col justify-between rounded-xl border p-4 sm:p-5 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#111827] ${
                               isSelected
                                 ? 'border-[#3B82F6] bg-blue-50/40 dark:bg-[#1E293B]/90 shadow-[0_0_24px_-4px_rgba(59,130,246,0.22)]'
                                 : isRejected
                                 ? 'border-slate-200 dark:border-slate-800/70 bg-slate-50/60 dark:bg-[#0f131d]/70 opacity-80'
+                                : isKeyboardFocused
+                                ? 'border-[#3B82F6]/80 bg-blue-50/20 dark:bg-[#1E293B]/75 ring-1 ring-[#3B82F6]/50'
                                 : 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#171b26]/90 hover:border-slate-300 dark:hover:border-slate-700'
                             }`}
                           >
@@ -472,7 +582,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => void handleCopy(copyId, answerText || '')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleCopy(copyId, answerText || '');
+                                    }}
                                     className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0f131d] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
                                     title={`Copy Answer ${slot}`}
                                     aria-label={`Copy Answer ${slot}`}

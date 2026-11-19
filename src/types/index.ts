@@ -8,7 +8,7 @@ export type AnswerStyle =
   | 'Professional Explanation'
   | 'Beginner-Friendly Explanation';
 
-export type NavView = 'chat' | 'analytics' | 'architecture' | 'settings';
+export type NavView = 'chat' | 'analytics' | 'architecture' | 'scene3d' | 'settings';
 
 export type BiasMode = 'balanced' | 'explore' | 'exploit';
 
